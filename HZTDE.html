@@ -1,0 +1,981 @@
+<!doctype html>
+<html>
+
+    <head>
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        
+        
+        
+        
+        <script>
+/* Source examples
+# heading
+
+This is a paragraph
+
+---
+
+>image[asd|example image|https://picsum.photos/id/22/200]
+
+- unordered item 1
+- unordered item 2
+another line
+- unordered item 3
+
+. ordered item 1
+. ordered item 2
+. ordered item 3
+
+[ ] unchecked task 1
+[ ] unchecked task 2
+[x] checked task 1
+[x] checked task 2
+
+code>>>
+code that CAN contain
+
+blank line
+<<<
+
+table>>>,
+r1c1 , r1c2 , r1c3
+r2c1,r2c2,r2c3
+<<<
+
+table>>>|
+r1c1 | r1c2 | r1c3
+r2c1|r2c2|r2c3
+<<<
+
+Inlines can be !b[bold text], !i[italic text], !s[strikethrough text], !u[superscript text], !d[subscript text], !c[inline code], !h[highlighted text], and !l[link|http://google.com]. Also they can be combined !bi[bold italic]. And also nested like !b[bold !i[and italic]].
+
+*/
+            /*
+            block - seperated by blank line - "\n\n"
+                single line
+                    headings - start with "# "
+                    paragraph - default
+                    horizontal rule - line is at least 3 repeating "-"
+                    image - images are put in figure tags ; line is "[alt|figcaption|src]"
+                multiline
+                    contains only single new line (no blank lines)
+                        list
+                            ordered - all items start ". "
+                            unordered - all items start "- "
+                            task - all items start with "[ ]" or "[x]"
+                    can contain blank lines - has block start indicator in the form of "type>>>optional arguments" and stop indicator "<<<"
+                        code - code
+                        table - table
+                        table with header - htable
+            inline - start marker "!indicators[", end marker "]" ; to use as displayable use "&excl;" "&lsqb;" "&rsqb;"
+                bold - b
+                italic - i
+                strikethrough - s
+                superscript - u
+                subscript - d
+                highlight - h
+                code - c
+                link - l ; format "|l>text|link<" or "|l>link<"
+            
+            megablock - asd>>>...<<<
+            block - \n\n...\n\n
+            lineblock
+                ... - paragraph by default
+                # - header
+                > - special
+            inline - !flags[content]
+            
+            */
+            //(?<!')'(?!') // non-repeating
+            
+            
+            
+            
+            const marky = {
+                
+                megablocks: { // matches KEY>>>content_str<<<
+                    
+                    "table": function(content_str) {
+                        
+                    },
+                    
+                    "code": function(content_str) {
+                        
+                    }
+                },
+                
+                blocks: { // matches ^KEY
+                    
+                    "#": function(content_str) {
+                        
+                    },
+                    
+                    "-": function(content_str) {
+                        
+                    }
+                },
+                
+                lineblocks: { // KEY is the first char
+                    
+                    "#": function(content_str) {
+                        
+                    },
+                    
+                    "-": function(content_str) {
+                        
+                    }
+                },
+                
+                
+                split_blocks: (in_str) => {
+                    let blocks = [];
+                    
+                    // start with blocks that can contain blank lines
+                    in_str.split(/((?:\n|^)(?:code|table)>>>.+?\n<<<(?:\n|$))/gs).forEach((block_str) => {
+                        if (block_str)
+                            blocks.push(block_str.trim());
+                    });
+                    
+                    // split blocks on blank lines except the previus ones
+                    blocks = blocks.flatMap((block_str) => {
+                        if (/^(?:code|table)/s.test(block_str)) {
+                            return block_str;
+                        }
+                        return block_str.split("\n\n");
+                    });
+                    
+                    // Clean up
+                    blocks = blocks.filter(block_str => block_str);
+                    
+                    // At this point blocks are split, but raw
+                    //console.log("->->->-> Raw blocks");
+                    //blocks.forEach((block_str) => {
+                    //    console.log(block_str);
+                    //});
+                    //console.log("<-<-<-<-");
+                    
+                    return blocks;
+                },
+                
+                parse: (in_str) => {
+                    
+                    let blocks = marky.split_blocks(in_str);
+                    
+                    // Handle blocks
+                    blocks = blocks.map((block_str) => {
+                        block_str = block_str.trim();
+                        switch (true) {
+                            case block_str.startsWith("---"): return "<hr/>";
+                            case block_str.startsWith("#"):{
+                                let match = block_str.match(/(#+) (.*)/);
+                                let level = match[1].length;
+                                level = level > 6 ? 6 : level;
+                                let text = match[2];
+                                return `<h${level}>${text}</h${level}>`;
+                            }
+                            
+                            case block_str.startsWith(">image"):{
+                                let data = block_str.match(/>image\[(.*?)\]/)[1].split("|");
+                                if (data.length === 2)
+                                    return `<figure><img alt="${data[0]}" src="${data[1]}" /></figure>`;
+                                else
+                                    return `<figure><img alt="${data[0]}" src="${data[2]}" /><figcaption>${data[1]}</figcaption></figure>`;
+                                //return `<p style="text-align: center;"><img alt="${alt}" src="${src}"></p>`;
+                            }
+                            case block_str.startsWith("code>>>"):{
+                                let match = block_str.match(/^code>>>\n(.*)\n<<<$/s);
+                                let code = match[1];
+                                return `<pre><code>${code}</code></pre>`;
+                            }
+                            case block_str.startsWith("table>>>"):{
+                                let match = block_str.match(/^table>>>(.)\n(.*)\n<<<$/s);
+                                let delimiter = match[1];
+                                let rows = match[2].split("\n");
+                                rows = rows.filter(l => l);
+                                rows = rows.map((row) => {
+                                    let cells = row.split(delimiter);
+                                    cells = cells.map(cell_content => `<td>${cell_content}</td>`);
+                                    return `<tr>${cells.join('')}</tr>`;
+                                });
+                                return `<figure><table>${rows.join('')}</table></figure>`;
+                            }
+                            case block_str.startsWith("htable>>>"):{//TODO//ORNOTTODO
+                                let match = block_str.match(/^htable>>>(.)\n(.*)\n<<<$/s);
+                                let delimiter = match[1];
+                                let rows = match[2].split("\n");
+                                rows = rows.filter(l => l);
+                                rows = rows.map((row, i) => {
+                                    let cells = row.split(delimiter);
+                                    if (i === 0)
+                                        cells = cells.map(cell_content => `<th>${cell_content}</th>`);
+                                    else
+                                        cells = cells.map(cell_content => `<td>${cell_content}</td>`);
+                                    return `<tr>${cells.join('')}</tr>`;
+                                });
+                                return `<figure><table>${rows.join('')}</table></figure>`;
+                            }
+                            case block_str.startsWith("- "):{
+                                let lines = block_str.split(/^- /gm);
+                                lines = lines.filter(l => l);
+                                lines = lines.map((line) => `<li>${line}</li>`);
+                                return `<ul>${lines.join("\n")}</ul>`;
+                            }
+                            case block_str.startsWith(". "):{
+                                let lines = block_str.split(/^\. /gm);
+                                lines = lines.filter(l => l);
+                                lines = lines.map((line) => `<li>${line}</li>`);
+                                return `<ol>${lines.join("\n")}</ol>`;
+                            }
+                            case block_str.startsWith("["):{
+                                let lines = block_str.split('\n');
+                                lines = lines.filter(l => l);
+                                lines = lines.map((line) => {
+                                    let match = line.match(/\[(.)\] (.*)/);
+                                    let checked = (match[1] === "x") ? " checked=\"\"" : "";
+                                    let text = match[2];
+                                    return `<li><input type="checkbox" disabled=""${checked}>${text}</li>`;
+                                });
+                                return `<ul>${lines.join("\n")}</ul>`;
+                            }
+                            default:{
+                                if (block_str.trim().startsWith("<"))
+                                    return `${block_str}`;
+                                else
+                                    return `<p>${block_str}</p>`;
+                            }
+                        }
+                    });
+                    
+                    // handle inline styles
+                    blocks = blocks.map((block_str) => { // ova mozi ne treba na site kako na pr code block mozi treba da se izvaj vo fn i da se povikva tamu
+                        
+                        const enclose = (text, encloser) => { return encloser+text+encloser; };
+                        
+                        let inline_regex = /!([a-z]+)\[([^\[\]]*)\]/gs;
+                        let checks = 0;
+                        while (block_str.match(inline_regex) && checks < 5) {
+                            checks += 1;
+                            block_str = block_str.replace(inline_regex, (match, indicators, text, offset, string, groups) => {
+                                if (indicators.includes("l"))
+                                    return match;
+                                
+                                let ret = text;
+                                indicators.split('').forEach((type) => {
+                                    let tag = ({
+                                        "b": "b",
+                                        "i": "i",
+                                        "i": "i",
+                                        "u": "sup",
+                                        "d": "sub",
+                                        "h": "mark",
+                                        "c": "code"
+                                    })[type] ?? "";
+                                    if (tag)
+                                        ret = `<${tag}>${ret}</${tag}>`;
+                                });
+                                return ret;
+                            });
+                        }
+                        
+                        block_str = block_str.replace(/!l\[(.*?)\|(.*?)\]/gs, "<a target=\"_blank\" href=\"$2\">$1</a>");
+                        block_str = block_str.replaceAll("  \n", "<br/>");
+                        
+                        return block_str;
+                    });
+                    
+                    //console.log("->->->-> Parsed blocks");
+                    //blocks.forEach((block_str) => {
+                    //    console.log(block_str);
+                    //});
+                    //console.log("<-<-<-<-");
+                    
+                    return blocks.join('\n\n');
+                }
+            };
+            
+        </script>
+        
+        
+        
+        
+        
+        
+        
+        <title>unnamed_file.ztx</title>
+        
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+            
+            :root {
+                --page-width: 210mm;
+                --page-height: 297mm;
+                --page-margin: 1.5cm;
+            }
+            
+            @media screen {
+                body {
+                    width: var(--page-width);
+                    box-shadow: 0 0 10px black;
+                    padding: var(--page-margin);
+                    margin: auto;
+                    margin-top: 5mm;
+                    margin-bottom: 80vh;
+                }
+                
+                .ztx-block {
+                    outline: 1px solid silver;
+                }
+            }
+            
+            @media print {
+                body {
+                    padding: 0;
+                    margin: 0;
+                }
+                
+                .ztx-block.empty {
+                    display: none;
+                }
+            }
+            @page {
+                size: var(--page-width) var(--page-height);
+                margin: var(--page-margin);
+            }
+            
+            
+            
+            
+            
+                
+            .ztx-block.empty {
+                outline-color: gainsboro;
+            }
+            
+            
+            .ztx-block.editing {
+                outline-color: lightgreen;
+            }
+            
+            .ztx-block > .src {
+                display: none;
+                width: 100%;
+                
+                outline: none;
+            }
+            
+            .ztx-block > .ztx {
+                min-height: 1em;
+            }
+            
+            
+            
+            .ztx-block.editing > .src {
+                display: revert;
+            }
+            
+            .ztx-block.editing > .src {
+                display: revert;
+            }
+            
+            .ztx-block.editing > .ztx {
+                display: none;
+            }
+            
+            
+        </style>
+        
+        <script>
+            function elementFromHTML(html, trim = true) {
+                // Process the HTML string.
+                html = trim ? html.trim() : html;
+                if (!html) return null;
+
+                // Then set up a new template element.
+                const template = document.createElement('template');
+                template.innerHTML = html;
+                const result = template.content.children;
+
+                // Then return either an HTMLElement or HTMLCollection,
+                // based on whether the input HTML had one or more roots.
+                if (result.length === 1) return result[0];
+                    return result;
+            }
+            
+            function generated_style_to_actual(src_el, dest_el, property_array) {
+                let computed_style = getComputedStyle(src_el);
+                property_array.forEach((property) => {
+                    dest_el.style[property] = computed_style[property];
+                });
+            }
+            
+            function get_selection_parts() {
+                
+                sel = document.getSelection().getRangeAt(0);                
+                
+                const start = document.createTextNode("\0");
+                const end = document.createTextNode("\0");
+                sel.insertNode(start);
+                sel.collapse(false); // collapse the range to the end of selection
+                sel.insertNode(end);
+                
+                let contents = sel.commonAncestorContainer.parentElement.closest(".ztx-block").querySelector(".src").innerText;
+                contents = contents.split("\0");
+                
+                let before_caret = contents[0];
+                let selection    = "";
+                let after_caret  = "";
+                if (contents.length === 3) {
+                    selection = contents[1];
+                    after_caret = contents[2];
+                }
+                else {
+                    after_caret = contents[1];
+                }
+                
+                return {before_caret, after_caret, selection};
+            }
+            
+            function setCaretPosition(ctrl,pos) {
+                ctrl.focus();
+                document.getSelection().collapse(ctrl.firstChild, pos);
+            }
+        </script>
+        
+        <script>
+            const Blocks = {
+                add_new: (preceeding_el = null) => {
+                    content = "Empty";
+                    content = content ? content : "Empty";
+                    content = content.trim();
+                    
+                    let new_block_el = elementFromHTML(`<div class="ztx-block"><div class="src" contenteditable="plaintext-only"></div><div class="ztx"></div></div>`);
+                    if (preceeding_el !== null)
+                        preceeding_el.parentNode.insertBefore(new_block_el, preceeding_el.nextSibling);
+                    else // end of body
+                        document.body.append(new_block_el);
+                    Blocks.generate_content(new_block_el);
+                    
+                    return new_block_el;
+                },
+                
+                
+                generate_content: function(ztx_block_or_child_el) {
+                    
+                    let ztx_block_el = ztx_block_or_child_el.closest(".ztx-block");
+                    
+                    let already_editing = ztx_block_el.classList.contains("editing");
+                    if (already_editing === false)
+                        ztx_block_el.classList.add("editing");
+                    
+                    let ungenerated_content    = ztx_block_el.querySelector(".src").innerText;
+                    
+                    let generated_content = marky.parse(ungenerated_content);
+                    
+                    ztx_block_el.querySelector(".ztx").innerHTML = generated_content;
+                    
+                    if (already_editing === false)
+                        ztx_block_el.classList.remove("editing");
+                    
+                    setTimeout(() => {
+                        console.log(ztx_block_el.innerText.trim());
+                        if (ztx_block_el.innerText.trim() === "")
+                            ztx_block_el.classList.add("empty");
+                        else
+                            ztx_block_el.classList.remove("empty");
+                    }, 0);
+                },
+                
+                Edit: {
+                    start(ztx_block_or_child_el) {
+                        
+                        let ztx_block_el = ztx_block_or_child_el.closest(".ztx-block");
+                        
+                        if (ztx_block_el.classList.contains("editing"))
+                            return;
+                        
+                        let ztx_src_el    = ztx_block_el.querySelector(".src");
+                        let ztx_target_el = ztx_block_el.querySelector(".ztx");
+                        
+                        try {
+                            generated_style_to_actual(ztx_target_el.firstChild, ztx_src_el, ["font-size", "font-family", "margin-top", "margin-bottom", "text-indent", "line-height", "text-align"]);
+                            generated_style_to_actual(ztx_target_el, ztx_src_el, ["height"]);
+                            ztx_src_el.style.setProperty("min-height", ztx_src_el.style.height);
+                            ztx_src_el.style.removeProperty("height");
+                        } catch {}
+                        ztx_block_el.classList.add("editing");
+                        
+                        ztx_src_el.focus();
+                        //selectElementContents(ztx_src_el);
+                    },
+                    
+                    stop(ztx_block_or_child_el) {
+                        
+                        let ztx_block_el = ztx_block_or_child_el.closest(".ztx-block");
+                        let ztx_src_el    = ztx_block_el.querySelector(".src");
+                        
+                        ztx_src_el.removeAttribute("style");
+                        
+                        Blocks.generate_content(ztx_block_el);
+                        
+                        ztx_block_el.classList.remove("editing");
+                    }
+                },
+                
+                set_content: function(ztx_block_or_child_el, content) {
+                    let ztx_block_el = ztx_block_or_child_el.closest(".ztx-block");
+                    
+                    Blocks.Edit.start(ztx_block_el);
+                    ztx_block_el.querySelector(".src").innerText = content;
+                    //Blocks.generate_content(ztx_block_or_child_el);
+                    ztx_block_el.querySelector(".src").blur();
+                    Blocks.Edit.stop(ztx_block_el);
+                },
+                
+                split_block: function(ztx_block_or_child_el) {
+                    let ztx_block_el = ztx_block_or_child_el.closest(".ztx-block");
+                    
+                    let ztx_src_el    = ztx_block_el.querySelector(".src");
+                    
+                    let ungenerated_content = ztx_src_el.innerText;
+                    
+                    let split_blocks = marky.split_blocks(ungenerated_content);
+                    
+                    let after_block = ztx_block_el;
+                    split_blocks.forEach((raw_block_str) => {
+                        let newset_block = Blocks.add_new(after_block);
+                        Blocks.set_content(newset_block, raw_block_str);
+                        after_block = newset_block;
+                    });
+                    
+                    ztx_block_el.remove();
+                },
+                
+                get_selected_blocks: function(){
+                    let selection = window.getSelection();
+                    if (selection.type !== "Range")
+                        return null;
+                    let range = selection.getRangeAt(0);
+                    
+                    let first_selected_block = range.startContainer.parentElement.closest(".ztx-block");
+                    let last_selected_block  =   range.endContainer.parentElement.closest(".ztx-block");
+                    
+                    let blocks_list = [];
+                    
+                    let current_block = first_selected_block;
+                    while (current_block !== last_selected_block) {
+                        blocks_list.push(current_block);
+                        current_block = current_block.nextElementSibling;
+                    }
+                    blocks_list.push(last_selected_block);
+                    
+                    return blocks_list;
+                },
+                
+                get_entire_src_str: function() {
+                    let out_str = "";
+                    document.querySelectorAll(".ztx-block").forEach((ztx_block_el, i, arr) => {
+                        Blocks.Edit.start(ztx_block_el);
+                        out_str += ztx_block_el.querySelector(".src").innerText;
+                        if (i !== arr.length - 1)
+                            out_str += "\n\n";
+                        ztx_block_el.querySelector(".src").blur();
+                        Blocks.Edit.stop(ztx_block_el);
+                    });
+                    return out_str;
+                },
+                
+                check_event: function(event) {
+                    switch (true) {
+                        case event instanceof MouseEvent:
+                            if (event.target.matches(".ztx-block, .ztx-block *")) {
+                                Blocks.Edit.start(event.target);
+                            }
+                            break;
+                        case event instanceof FocusEvent:
+                            if (event.target.matches(".ztx-block > .src")) {
+                                Blocks.Edit.stop(event.target);
+                            }
+                            break;
+                        case event instanceof KeyboardEvent:
+                            if (event.altKey && event.key === "b") {
+                                
+                                event.preventDefault();
+                                event.stopImmediatePropagation();
+                                
+                                Blocks.split_block(event.target);
+                            }
+                            if (event.altKey && event.key === "j") {
+                                
+                                event.preventDefault();
+                                event.stopImmediatePropagation();
+                                
+                                let selected_blocks = Blocks.get_selected_blocks();
+                                let prev_el = selected_blocks[0].previousElementSibling;
+                                let new_str = "";
+                                selected_blocks.forEach((block) => {
+                                    Blocks.Edit.start(block);
+                                    new_str += block.querySelector(".src").innerText;
+                                    new_str += "\n\n";
+                                    Blocks.Edit.stop(block);
+                                    block.remove();
+                                });
+                                Blocks.set_content(Blocks.add_new(prev_el), new_str);
+                            }
+                            if (event.altKey && event.key === "r") {
+                                
+                                event.preventDefault();
+                                event.stopImmediatePropagation();
+                                
+                                let activator_block =
+                                    event.target.matches(".ztx-block, .ztx-block *") ?
+                                    event.target.closest(".ztx-block") :
+                                    null;
+                                
+                                if (activator_block) {
+                                    activator_block.remove();
+                                }
+                            }
+                            if (event.altKey && event.key === "i") {
+                                
+                                event.preventDefault();
+                                event.stopImmediatePropagation();
+                                
+                                if (event.target.matches(".ztx-block > .src")) {
+                                    
+                                    let flags = prompt("Input inline formating flags");
+                                    if (flags) {
+                                    
+                                        selection_parts = get_selection_parts();
+                                        
+                                        event.target.innerText = `${selection_parts.before_caret}!${flags}[${selection_parts.selection}]${selection_parts.after_caret}`
+                                        
+                                        setTimeout(() => {
+                                            Blocks.Edit.start(event.target);
+                                            event.target.focus();
+                                            
+                                            document.getSelection().collapse(event.target, 5);
+                                            //console.log("setting");
+                                            //setCaretPosition(event.target, 24);
+                                        }, 0);
+                                        // putcursor to selection_parts.before_caret.length + flags.length + selection_parts.selection.length + 2
+                                    }
+                                }
+                            }
+                            if (event.shiftKey === false && event.key === "Enter") {
+                                
+                                event.preventDefault();
+                                event.stopImmediatePropagation();
+                                
+                                let activator_block =
+                                    event.target.matches(".ztx-block, .ztx-block *") ?
+                                    event.target.closest(".ztx-block") :
+                                    null;
+                                
+                                let edit_block = null;
+                                
+                                if (activator_block) {
+                                    
+                                    selection_parts = get_selection_parts();
+                                    
+                                    let  first_new_block = Blocks.add_new(activator_block);
+                                    let second_new_block = Blocks.add_new(first_new_block);
+                                    
+                                    Blocks.set_content( first_new_block, selection_parts.before_caret);
+                                    Blocks.set_content(second_new_block, selection_parts.after_caret);
+                                    
+                                    edit_block = second_new_block;
+                                    
+                                    activator_block.remove();
+                                }
+                                else {
+                                    edit_block = Blocks.add_new();
+                                }
+                                
+                                Blocks.Edit.start(edit_block);
+                            }
+                            break;
+                    }
+                }
+            };
+            
+            window.addEventListener("click", Blocks.check_event);
+            window.addEventListener("focusout", Blocks.check_event);
+            
+            document.addEventListener("keyup", function(event) {
+                
+            });
+            
+            document.addEventListener("keydown", function(event) {
+                Blocks.check_event(event);
+                if (event.altKey && event.key === "o") {
+                    var input = document.createElement('input');
+                    input.type = 'file';
+                    
+                    input.onchange = (e) => { 
+                    
+                        // getting a hold of the file reference
+                        var file = e.target.files[0];
+                        
+                        document.querySelector("title").innerText = file.name;
+                        
+                        // setting up the reader
+                        var reader = new FileReader();
+                        reader.readAsText(file,'UTF-8');
+                    
+                        // here we tell the reader what to do when it's done reading...
+                        reader.onload = (readerEvent) => {
+                            var content = readerEvent.target.result; // this is the content!
+                            document.body.innerText = "";
+                            let new_el = Blocks.add_new();
+                            Blocks.set_content(new_el, content);
+                        }
+                    
+                    }
+                    
+                    input.click();
+                }
+                if (event.altKey && event.key === "s") {
+                    var scroll = window.scrollY;
+                    
+                    var filename = document.querySelector("title").innerText;
+                    var data = Blocks.get_entire_src_str();
+                    
+                    var file = new Blob([data], {type: "text/plain"});
+                    var a = document.createElement("a"),
+                    url = URL.createObjectURL(file);
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(function() {
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        window.scroll(window.scrollX, scroll);
+                    }, 0);
+                }
+            });
+            document.addEventListener("paste", function(event) {
+                // strip to plain text
+            });
+            
+            window.addEventListener("load", (event) => {
+                document.querySelectorAll(".ztx-block").forEach((block) => {
+                    Blocks.generate_content(block);
+                });
+            });
+            
+        </script>
+        
+        <style>
+            :root {
+                --color-dark: black;
+            }
+            
+            
+            /*h1, h2, h3, h4, h5, h6 {
+                text-align: center;
+            }*/
+            
+            /*h1 {
+                text-decoration: underline double 2px;
+            }
+            
+            h2 {
+                text-decoration: underline;
+            }
+            
+            h3:first-letter {
+              text-decoration:underline;
+            }*/
+            
+            
+            h1 {
+                break-before: page;
+            }
+            
+            h2, h3, h4, h5, h6 {
+                break-after: avoid;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+
+            h2 {
+                font-size: 1.7em;
+            }
+
+            h3 {
+                font-size: 1.5em;
+            }
+
+            h4 {
+                font-size: 1.3em;
+            }
+
+            h5 {
+                font-size: 1.2em;
+            }
+
+            h6 {
+                font-size: 1em;
+            }
+            
+            body{ counter-set: h-level-1 h-level-6 h-level-5 h-level-4 h-level-3 h-level-2; }
+            h1  { counter-set: h-level-2; }
+            h2  { counter-set: h-level-3; }
+            h3  { counter-set: h-level-4; }
+            h4  { counter-set: h-level-5; }
+            h5  { counter-set: h-level-6; }
+            
+            
+            h1::before {
+                counter-increment: h-level-1;
+                content: counter(h-level-1) ". ";
+            }
+            
+            h2::before {
+                counter-increment: h-level-2;
+                content: counter(h-level-1) "." counter(h-level-2) ". ";
+            }
+            
+            h3::before {
+                counter-increment: h-level-3;
+                content: counter(h-level-1) "." counter(h-level-2) "." counter(h-level-3) ". ";
+            }
+            
+            h4::before {
+                counter-increment: h-level-4;
+                content: counter(h-level-1) "." counter(h-level-2) "." counter(h-level-3) "." counter(h-level-4) ". ";
+            }
+            
+            h5::before {
+                counter-increment: h-level-5;
+                content: counter(h-level-1) "." counter(h-level-2) "." counter(h-level-3) "." counter(h-level-4) "." counter(h-level-5) ". ";
+            }
+            
+            h6::before {
+                counter-increment: h-level-6;
+                content: counter(h-level-1) "." counter(h-level-2) "." counter(h-level-3) "." counter(h-level-4) "." counter(h-level-5) "." counter(h-level-6) ". ";
+            }
+            
+            p {
+                text-indent: 4ch;
+            }
+            
+            table, td, th {
+                border: 1px solid var(--color-dark);
+            }
+            table {
+                margin: auto;
+            }
+            
+            td, th {
+                padding: 0.5mm 2mm;
+            }
+            
+            figure {
+                text-align: center;
+            }
+            
+            figure > img {
+                max-width: 100%;
+            }
+            
+            pre,
+            :not(pre) > code {
+              background-color: #00000018;
+              /*padding: 0.05em;
+              padding-top: 0.2em;*/
+            }
+            
+            .section > div > div > table {
+                max-width: 100%; /*TODO*/
+            }
+            
+            hr {
+                border: none;
+                border-bottom: 1px solid var(--color-dark);
+            }
+        
+        </style>
+        
+    </head>
+    
+    
+    <body>
+        <div class="ztx-block">
+            <div class="src" contenteditable="plaintext-only"># heading
+
+This is a paragraph.
+
+---
+
+>image[asd|example image|https://picsum.photos/id/22/200]
+
+- unordered item 1
+- unordered item 2
+another line
+- unordered item 3
+
+. ordered item 1
+. ordered item 2
+. ordered item 3
+
+[ ] unchecked task 1
+[ ] unchecked task 2
+[x] checked task 1
+[x] checked task 2
+
+code>>>
+code that CAN contain
+
+blank line
+<<<
+
+table>>>,
+r1c1 , r1c2 , r1c3
+r2c1,r2c2,r2c3
+<<<
+
+table>>>|
+r1c1 | r1c2 | r1c3
+r2c1|r2c2|r2c3
+<<<
+
+Inlines can be !b[bold text], !i[italic text], !s[strikethrough text], !u[superscript text], !d[subscript text], !c[inline code], !h[highlighted text], and !l[link|http://google.com]. Also they can be combined !bi[bold italic]. And also nested like !b[bold !i[and italic]].
+
+Paragraph breaks are done with a double space  
+and a newline.
+
+Keyboard shortcuts are:
+
+table>>>|
+Alt + O | Open file
+Alt + S | Save file
+Alt + B | Break up the curently editing block
+Alt + J | Join the selected blocks
+Alt + R | Remove the curently editing block
+Alt + I | Add inline formatting flags to selected text
+<<<
+
+htable>>>|
+Alt + O | Open file
+Alt + S | Save file
+Alt + B | Break up the curently editing block
+Alt + J | Join the selected blocks
+Alt + R | Remove the curently editing block
+Alt + I | Add inline formatting flags to selected text
+<<<
+</div>
+            <div class="ztx"></div>
+        </div>
+            
+        
+    </body>
+
+</html>
