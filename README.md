@@ -12,6 +12,6 @@ The document is organized into sections which each contain a seperate block leve
 
 An example for all block and inline elemets can be seen in the default document that is automatically loaded by opening `HZTDE.html`.
 
-Upon loading a file everything is put into 1 section which can automatically be broken up using the keyboard shortcut `Alt + b`. To open an already existing *.ztx* file use `Alt + o`. To save it use `Alt + s`. *Note: if you use `Ctrs + s` the document will be saved as html which we don't want.* To join 2 or more sections use `Alt + j`, *make sure you select them while none of them are being edited*. Empty block still remain and apear in the browser prewiew, but aren't shown when printing. To remove any section use `Alt + r`.
+Upon loading a file everything is put into 1 section which can automatically be broken up using the keyboard shortcut `Alt + b`. To open an already existing *.ztx* file use `Alt + o`. To save it use `Alt + s`. *Note: if you use `Ctrs + s` the document will be saved as html which we don't want.* To join 2 or more sections use `Alt + j`, *make sure you select them while none of them are being edited*. Empty blocks still remain and apear in the browser prewiew, but aren't shown when printing. To remove any section use `Alt + r`.
 
 Embedding raw HTML is also possible as long as it doesn't contain any blank lines because `Ctrl + b` will cause them to be seperated, causing errors.
