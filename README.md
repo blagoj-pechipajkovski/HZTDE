@@ -18,7 +18,7 @@ Embedding raw HTML is also possible as long as it doesn't contain any blank line
 
 ### Example
 
-The folowing example code
+The folowing example code, which is loaded by default upon opening `HZTDE.html`
 
 ```
 # heading
@@ -85,6 +85,6 @@ Alt + I | Add inline formatting flags to selected text
 <<<
 ```
 
-will generate the folowing document
+after breakng up the sections(`Alt + b`), will generate the folowing document
 
 ![example image](HZTDE_exampledoc.png)
