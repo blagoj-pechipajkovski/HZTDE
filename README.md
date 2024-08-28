@@ -87,4 +87,4 @@ Alt + I | Add inline formatting flags to selected text
 
 will generate the folowing document
 
-[example image](HZTDE_exampledoc.png)
+![example image](HZTDE_exampledoc.png)
